@@ -16,7 +16,7 @@ const seconds_in_minute = 60
 const minutes_in_hour = 60
 const hours_in_day = 24
 
-const bot_command_string = '!WaterBot'
+const bot_command_string = '!waterbot'
 
 const drink_water_messages = ['Drink Water!', 'Remember To Stay Hydrated!', 'Time For Water!']
 const gif_library = ['https://tenor.com/view/pikachu-drink-water-thirsty-pokemon-gif-16367809','https://tenor.com/view/pet-water-drinking-licking-glass-gif-3528535','https://tenor.com/view/cat-reminder-water-hydrate-gif-9442188',
