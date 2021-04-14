@@ -1,26 +1,29 @@
 /*
-    Made by Christian Møllnitz #Moll
+    Made by Christian Møllnitz Moll#6916
 
 */ 
 
 const Discord = require('discord.js');
 const client = new Discord.Client();
 
+//Used for check_rights
 const owner_access = true
 const admin_access = true
 const role_access = ['Mods', 'Owner']
 
+//Static values for conversion of time into ms
 const seconds_in_minute = 60
 const minutes_in_hour = 60
 const hours_in_day = 24
 
-const bot_command_string = '!waterbot'
+const bot_command_string = '!WaterBot'
 
 const drink_water_messages = ['Drink Water!', 'Remember To Stay Hydrated!', 'Time For Water!']
 const gif_library = ['https://tenor.com/view/pikachu-drink-water-thirsty-pokemon-gif-16367809','https://tenor.com/view/pet-water-drinking-licking-glass-gif-3528535','https://tenor.com/view/cat-reminder-water-hydrate-gif-9442188',
 'https://tenor.com/view/hydration-thirst-thirsty-slut-gif-10121585','https://tenor.com/view/scotts-scottsmy-crap-happy-smile-gif-17391087','https://tenor.com/view/thirsty-drinking-from-faucet-drinking-water-drink-cat-gif-14154055',
 'https://tenor.com/view/yourname-drink-water-thirsty-gif-7520109','https://tenor.com/view/racoon-remember-too-drink-water-gif-18427566','https://tenor.com/view/thirsty-water-fall-gif-16327653','https://tenor.com/view/water-drink-your-gif-18026558']
 
+//Used to contain the scheduled water reminder.
 var handle;
 
 function WaterBot(text, group) {
@@ -46,12 +49,10 @@ client.on('message', msg => {
         return;
     }   
 
-    clean_split = msg.cleanContent.trim().split(" ")
-    content_split = msg.content.trim().split(" ")
-
     if(msg.cleanContent.toLowerCase().startsWith(bot_command_string)) {
 
-        
+        clean_split = msg.cleanContent.trim().split(" ")
+        content_split = msg.content.trim().split(" ")
 
         var candidatestring = msg.cleanContent.substring(bot_command_string.length).trim().split(" ")[0]
         var rolestring = msg.content.substring(bot_command_string.length).trim().split(" ")[1]
@@ -65,11 +66,9 @@ client.on('message', msg => {
             if(candidatestring.includes('m') || candidatestring.includes('h')){
                 var num = parseInt(pieces[0], 10);
                 if(candidatestring.includes('h')) {
-                    console.log("h")
                     hour = num;
                 }
                 else{
-                    console.log("m")
                     minute = num;
                 }
             }
@@ -82,16 +81,11 @@ client.on('message', msg => {
             second = nan_to_zero(second);
             minute = nan_to_zero(minute);
             hour = nan_to_zero(hour);
-
-            console.log(second)
-            console.log(minute)
-            console.log(hour)
             
             var group = ""
             if(rolestring !== undefined && rolestring.trim().match(/^<@&\d{1,50}>$/) !== null){
                 group = rolestring;
             }
-            console.log("group is " + group)
 
             if(hour+minute+second !== 0)
             {
@@ -118,6 +112,7 @@ function nan_to_zero(num) {
     }
 }
 
+//Checks for rights.
 function check_rights(msg) {
     var access = false;
     if(admin_access){
