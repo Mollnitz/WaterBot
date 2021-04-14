@@ -1,0 +1,22 @@
+{
+  "name": "waterbot",
+  "version": "1.0.0",
+  "description": "A simple bot that reminds you to drink water.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mollnitz/WaterBot.git"
+  },
+  "keywords": [
+    "discord.js"
+  ],
+  "author": "Mollnitz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Mollnitz/WaterBot/issues"
+  },
+  "homepage": "https://github.com/Mollnitz/WaterBot#readme"
+}
