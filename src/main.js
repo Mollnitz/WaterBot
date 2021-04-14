@@ -11,6 +11,8 @@ const owner_access = true
 const admin_access = true
 const role_access = ['Mods', 'Owner']
 
+const end_strings = ['close', 'cancel', 'terminate', 'end']
+
 //Static values for conversion of time into ms
 const seconds_in_minute = 60
 const minutes_in_hour = 60
@@ -54,6 +56,12 @@ client.on('message', msg => {
         clean_split = msg.cleanContent.trim().split(" ")
         content_split = msg.content.trim().split(" ")
 
+        if(end_strings.indexOf(clean_split[1]) >= 0){
+            console.log("closed handle")
+            close_handle();
+            return;
+        }
+
         var candidatestring = msg.cleanContent.substring(bot_command_string.length).trim().split(" ")[0]
         var rolestring = msg.content.substring(bot_command_string.length).trim().split(" ")[1]
 
@@ -92,6 +100,7 @@ client.on('message', msg => {
                 var ms_delay = 1000 * second + 1000 * seconds_in_minute * minute + 1000 * seconds_in_minute * minutes_in_hour * hour
                 handle = setInterval(()=>reminder(msg, group), ms_delay)
             }
+            
             else{
                 help(msg)
             }
@@ -101,6 +110,10 @@ client.on('message', msg => {
         }
     }
 });
+
+function close_handle(){
+    clearInterval(handle);
+}
 
 function nan_to_zero(num) {
     if(isNaN(num))
