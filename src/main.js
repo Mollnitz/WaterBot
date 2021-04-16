@@ -11,7 +11,7 @@ const owner_access = true
 const admin_access = true
 const role_access = ['Mods', 'Owner']
 
-const end_strings = ['close', 'cancel', 'terminate', 'end']
+const end_strings = ['close', 'cancel', 'terminate', 'end', 'stop']
 const status_strings = ['status']
 
 //Static values for conversion of time into ms
@@ -70,6 +70,7 @@ client.on('message', msg => {
         {
             console.log("status")
             post_status(msg);
+            return;
         }
 
         var candidatestring = msg.cleanContent.substring(bot_command_string.length).trim().split(" ")[0]
@@ -131,10 +132,11 @@ function post_status(msg){
     if(serv_dict[msg_to_dict_id(msg)])
     {
         console.log("status is real")
-        var time = serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)
+        var seconds = serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)
 
         var res = ""
-        res += "Next message in: " + time.toString() + " seconds"
+        res += "Next message in: " + seconds.toString() + " seconds"
+        msg.channel.send(res);
     }
     else{
         msg.channel.send("Status not available!")
@@ -145,7 +147,7 @@ function msg_to_dict_id(msg){
     return msg.guild.id.toString() + " " + msg.channel.id.toString();
 }
 
-function close_handle(msg)){
+function close_handle(msg){
     clearInterval(serv_dict[msg_to_dict_id(msg)].handle)
     delete serv_dict[msg_to_dict_id(msg)];
 }
