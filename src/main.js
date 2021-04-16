@@ -133,7 +133,7 @@ function post_status(msg){
     {
         console.log("status is real")
         var seconds = serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)
-
+        
         var res = ""
         res += "Next message in: " + seconds.toString() + " seconds"
         msg.channel.send(res);
