@@ -12,6 +12,7 @@ const admin_access = true
 const role_access = ['Mods', 'Owner']
 
 const end_strings = ['close', 'cancel', 'terminate', 'end']
+const status_strings = ['status']
 
 //Static values for conversion of time into ms
 const seconds_in_minute = 60
@@ -24,6 +25,8 @@ const drink_water_messages = ['Drink Water!', 'Remember To Stay Hydrated!', 'Tim
 const gif_library = ['https://tenor.com/view/pikachu-drink-water-thirsty-pokemon-gif-16367809','https://tenor.com/view/pet-water-drinking-licking-glass-gif-3528535','https://tenor.com/view/cat-reminder-water-hydrate-gif-9442188',
 'https://tenor.com/view/hydration-thirst-thirsty-slut-gif-10121585','https://tenor.com/view/scotts-scottsmy-crap-happy-smile-gif-17391087','https://tenor.com/view/thirsty-drinking-from-faucet-drinking-water-drink-cat-gif-14154055',
 'https://tenor.com/view/yourname-drink-water-thirsty-gif-7520109','https://tenor.com/view/racoon-remember-too-drink-water-gif-18427566','https://tenor.com/view/thirsty-water-fall-gif-16327653','https://tenor.com/view/water-drink-your-gif-18026558']
+
+var serv_dict;
 
 //Used to contain the scheduled water reminder.
 var handle;
@@ -42,6 +45,7 @@ function WaterBot(text, group) {
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    serv_dict = {};
 });
 
 client.on('message', msg => {
@@ -56,10 +60,16 @@ client.on('message', msg => {
         clean_split = msg.cleanContent.trim().split(" ")
         content_split = msg.content.trim().split(" ")
 
-        if(end_strings.indexOf(clean_split[1]) >= 0){
+        if(end_strings.includes(clean_split[1])){
             console.log("closed handle")
-            close_handle();
+            close_handle(msg);
             return;
+        }
+
+        if(status_strings.includes(clean_split[1]))
+        {
+            console.log("status")
+            post_status(msg);
         }
 
         var candidatestring = msg.cleanContent.substring(bot_command_string.length).trim().split(" ")[0]
@@ -98,7 +108,13 @@ client.on('message', msg => {
             if(hour+minute+second !== 0)
             {
                 var ms_delay = 1000 * second + 1000 * seconds_in_minute * minute + 1000 * seconds_in_minute * minutes_in_hour * hour
-                handle = setInterval(()=>reminder(msg, group), ms_delay)
+                serv_dict[msg_to_dict_id(msg)] = {
+                    handle: setInterval(()=>reminder(msg, group), ms_delay),
+                    timestamp: + Math.round(new Date().getTime()/1000),
+                    delay: ms_delay / 1000,
+                    group: group
+                } 
+                
             }
             
             else{
@@ -111,8 +127,27 @@ client.on('message', msg => {
     }
 });
 
-function close_handle(){
-    clearInterval(handle);
+function post_status(msg){
+    if(serv_dict[msg_to_dict_id(msg)])
+    {
+        console.log("status is real")
+        var time = serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)
+
+        var res = ""
+        res += "Next message in: " + time.toString() + " seconds"
+    }
+    else{
+        msg.channel.send("Status not available!")
+    }
+}
+
+function msg_to_dict_id(msg){
+    return msg.guild.id.toString() + " " + msg.channel.id.toString();
+}
+
+function close_handle(msg)){
+    clearInterval(serv_dict[msg_to_dict_id(msg)].handle)
+    delete serv_dict[msg_to_dict_id(msg)];
 }
 
 function nan_to_zero(num) {
@@ -166,6 +201,7 @@ function help(msg){
 
 function reminder(msg, group = "") {
     msg.channel.send(WaterBot(msg.cleanContent, group));
+    serv_dict[msg_to_dict_id(msg)].timestamp = Math.floor(Date.now() / 1000)
 }
 
 
