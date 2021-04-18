@@ -41,13 +41,7 @@ client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     serv_dict = {};
     lang_dict = {};
-
-    console.log("a")
-    read_langs().then(() => {
-        console.log(lang_dict['eng']) 
-    })
-    console.log("b")
-
+    read_langs()
 });
 
 client.on('message', msg => {
@@ -59,22 +53,22 @@ client.on('message', msg => {
 
     if(msg.cleanContent.toLowerCase().startsWith(bot_command_string)) {
 
+        has_valid_setup = serv_dict[msg_to_dict_id(msg)] !== undefined
         clean_split = msg.cleanContent.trim().split(" ")
         content_split = msg.content.trim().split(" ")
 
-        if(end_strings.includes(clean_split[1])){
-            console.log("closed handle")
-            close_handle(msg);
-            return;
-        }
-
         if(status_strings.includes(clean_split[1]))
         {
-            console.log("status")
             msg.channel.send(write_status(msg));
             return;
         }
         
+        if(end_strings.includes(clean_split[1])){
+            
+            msg.channel.send(write_close(msg))
+            close_handle(msg);
+            return;
+        }
 
         var candidatestring = clean_split[1]
         var rolestring = content_split[2]
@@ -119,8 +113,6 @@ client.on('message', msg => {
                 {
                     close_handle(msg)
                 }
-                
-
                 serv_dict[msg_to_dict_id(msg)] = {
                     handle: setInterval(()=>reminder(msg, group), ms_delay),
                     timestamp: + Math.round(new Date().getTime()/1000),
@@ -128,11 +120,8 @@ client.on('message', msg => {
                     group: group,
                     lang: lang_dict[base_lang] 
                 } 
-                
                 msg.channel.send(write_confirm_setup(msg));
-
             }
-            
             else{
                 help(msg)
             }
@@ -157,6 +146,15 @@ async function read_langs() {
        
 }
 
+//TODO: Needs to have translation support.
+function write_close(msg){
+    var res = ""
+    res += "Waterbot has been disabled \n"
+    res += "Thank you for using Waterbot \n"
+    res += "May your thirst have been quenched"
+    return res
+}
+
 function write_confirm_setup(msg) {
     var res = "Setup confirmed! \n"
     res += write_status(msg);
@@ -179,7 +177,7 @@ function write_status(msg){
         return res;
     }
     else{
-        return "Status not available!"
+        return "Waterbot has not been set up in this channel\n If you need help setting up Waterbot try !Waterbot"
     }
 }
 
