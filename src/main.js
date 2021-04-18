@@ -6,10 +6,18 @@
 const Discord = require('discord.js');
 const client = new Discord.Client();
 
+const util = require('util');
+const fs = require('fs')
+
 //Used for check_rights
 const owner_access = true
 const admin_access = true
 const role_access = ['Mods', 'Owner']
+
+const base_lang = 'eng'
+const lang_dir = 'languages/'
+var lang_dict
+
 
 const end_strings = ['close', 'cancel', 'terminate', 'end', 'stop']
 const status_strings = ['status']
@@ -21,31 +29,25 @@ const hours_in_day = 24
 
 const bot_command_string = '!waterbot'
 
-const drink_water_messages = ['Drink Water!', 'Remember To Stay Hydrated!', 'Time For Water!']
-const gif_library = ['https://tenor.com/view/pikachu-drink-water-thirsty-pokemon-gif-16367809','https://tenor.com/view/pet-water-drinking-licking-glass-gif-3528535','https://tenor.com/view/cat-reminder-water-hydrate-gif-9442188',
-'https://tenor.com/view/hydration-thirst-thirsty-slut-gif-10121585','https://tenor.com/view/scotts-scottsmy-crap-happy-smile-gif-17391087','https://tenor.com/view/thirsty-drinking-from-faucet-drinking-water-drink-cat-gif-14154055',
-'https://tenor.com/view/yourname-drink-water-thirsty-gif-7520109','https://tenor.com/view/racoon-remember-too-drink-water-gif-18427566','https://tenor.com/view/thirsty-water-fall-gif-16327653','https://tenor.com/view/water-drink-your-gif-18026558']
+var drink_water_messages 
+var gif_library 
 
 var serv_dict;
 
-//Used to contain the scheduled water reminder.
-var handle;
-
-function WaterBot(text, group) {
-    var res = ""
-    if(group != "")
-    {
-        res += group;
-    }
-    res += drink_water_messages[Math.floor(Math.random() * drink_water_messages.length)];
-    res += " "
-    res += gif_library[Math.floor(Math.random() * gif_library.length)]
-    return res
-}
 
 client.on('ready', () => {
+    gif_library = fs.readFileSync("./data/gifs").toString().split("\n")
+    drink_water_messages = fs.readFileSync("./data/eng_messages").toString().split("\n")
     console.log(`Logged in as ${client.user.tag}!`);
     serv_dict = {};
+    lang_dict = {};
+
+    console.log("a")
+    read_langs().then(() => {
+        console.log(lang_dict['eng']) 
+    })
+    console.log("b")
+
 });
 
 client.on('message', msg => {
@@ -69,17 +71,20 @@ client.on('message', msg => {
         if(status_strings.includes(clean_split[1]))
         {
             console.log("status")
-            post_status(msg);
+            msg.channel.send(write_status(msg));
             return;
         }
+        
 
-        var candidatestring = msg.cleanContent.substring(bot_command_string.length).trim().split(" ")[0]
-        var rolestring = msg.content.substring(bot_command_string.length).trim().split(" ")[1]
+        var candidatestring = clean_split[1]
+        var rolestring = content_split[2]
+
+        console.log(candidatestring)
 
         var regex2 = /^(?:\d{1,2})((?:h|m)|(?:\:\d{1,2})?(?:\:\d{1,2})?)$/;
-        var matchregex = candidatestring.match(regex2);
         
-        if(matchregex !== null) {
+        //Catching an undefined string here, in case the call was just purely the command string, also checks if the format of the candidate string is a timestamp.
+        if(candidatestring !== undefined && candidatestring.match(regex2) !== null) {
             var pieces = candidatestring.split(':'), hour, minute, second;
 
             if(candidatestring.includes('m') || candidatestring.includes('h')){
@@ -109,13 +114,23 @@ client.on('message', msg => {
             if(hour+minute+second !== 0)
             {
                 var ms_delay = 1000 * second + 1000 * seconds_in_minute * minute + 1000 * seconds_in_minute * minutes_in_hour * hour
+                console.log(serv_dict[msg_to_dict_id(msg)])
+                if(serv_dict[msg_to_dict_id(msg)] !== undefined)
+                {
+                    close_handle(msg)
+                }
+                
+
                 serv_dict[msg_to_dict_id(msg)] = {
                     handle: setInterval(()=>reminder(msg, group), ms_delay),
                     timestamp: + Math.round(new Date().getTime()/1000),
                     delay: ms_delay / 1000,
-                    group: group
+                    group: group,
+                    lang: lang_dict[base_lang] 
                 } 
                 
+                msg.channel.send(write_confirm_setup(msg));
+
             }
             
             else{
@@ -128,19 +143,49 @@ client.on('message', msg => {
     }
 });
 
-function post_status(msg){
+async function read_langs() {
+    var filenames = []
+    var filenames_awaiter = await fs.promises.readdir(lang_dir)
+    filenames.push(filenames_awaiter) 
+
+    const { length } = filenames
+    const strings = await Promise.all(filenames.map(fname => fs.promises.readFile(lang_dir + fname)))
+
+    for (let i = 0; i < length; i++) {
+        lang_dict[filenames[i].toString().split('.')[0]] = JSON.parse(strings[i]);
+    }
+       
+}
+
+function write_confirm_setup(msg) {
+    var res = "Setup confirmed! \n"
+    res += write_status(msg);
+    return res;
+}
+
+function write_status(msg){
     if(serv_dict[msg_to_dict_id(msg)])
     {
-        console.log("status is real")
-        var seconds = serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)
-        
+        var seconds = Math.floor(serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)) 
+        var minutes = Math.floor(seconds / seconds_in_minute % minutes_in_hour)
+        var hours = Math.floor(seconds / seconds_in_minute / minutes_in_hour)
+        seconds %= 60
+       
         var res = ""
-        res += "Next message in: " + seconds.toString() + " seconds"
-        msg.channel.send(res);
+        res += "Next message in: " + 
+        (hours !== 0 ? hours.toString() + (hours > 1 ? langLookup(msg, 'hrs_plur') : langLookup(msg, 'hrs'))  : "") + " " +
+        (minutes !== 0 ? minutes.toString() + " " + (minutes > 1 ? langLookup(msg, 'min_plur') : langLookup(msg, 'min')) : "") + " " + 
+        (seconds !== 0 ? seconds.toString() + " " + (seconds > 1 ? langLookup(msg, 'sec_plur') : langLookup(msg, 'sec')) : "")
+        return res;
     }
     else{
-        msg.channel.send("Status not available!")
+        return "Status not available!"
     }
+}
+
+function langLookup(msg, key, def = "Translation Missing"){
+    var res = (serv_dict[msg_to_dict_id(msg)].lang.hasOwnProperty(key) ? serv_dict[msg_to_dict_id(msg)].lang[key] : def)
+    return res;
 }
 
 function msg_to_dict_id(msg){
@@ -160,6 +205,19 @@ function nan_to_zero(num) {
     else{
         return num;
     }
+}
+
+
+function WaterBot(text, group) {
+    var res = ""
+    if(group != "")
+    {
+        res += group;
+    }
+    res += drink_water_messages[Math.floor(Math.random() * drink_water_messages.length)];
+    res += " "
+    res += gif_library[Math.floor(Math.random() * gif_library.length)]
+    return res
 }
 
 //Checks for rights.
@@ -201,8 +259,10 @@ function help(msg){
 
 }
 
+//The reminder function that is designed to repeat forever.
 function reminder(msg, group = "") {
     msg.channel.send(WaterBot(msg.cleanContent, group));
+    //Update time for next reminder
     serv_dict[msg_to_dict_id(msg)].timestamp = Math.floor(Date.now() / 1000)
 }
 
