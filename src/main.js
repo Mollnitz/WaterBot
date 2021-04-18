@@ -45,9 +45,7 @@ client.on('ready', () => {
 });
 
 client.on('message', msg => {
-    console.log(msg.content)
     if(!check_rights(msg)){
-        console.log("insufficient rights")
         return;
     }   
 
@@ -177,7 +175,7 @@ function write_status(msg){
         return res;
     }
     else{
-        return "Waterbot has not been set up in this channel\n If you need help setting up Waterbot try !Waterbot"
+        return "Waterbot has not been set up in this channel\nIf you need help setting up Waterbot try !Waterbot"
     }
 }
 
