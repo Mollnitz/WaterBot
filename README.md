@@ -12,5 +12,5 @@ Contributions in the form of pull requests very welcome.
 Thank you to: [Fl1ck0ut](https://github.com/Fl1ck0ut) and [MadsBock](https://github.com/MadsBock)
 
 TODO for RC1:
- Add persistence
- Remove all 'magic strings' to l10n files
+ 1. Add persistence
+ 2. Remove all 'magic strings' to l10n files
