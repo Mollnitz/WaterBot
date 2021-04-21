@@ -9,4 +9,4 @@ Warning: As of right no the bot is still under development and does not feature 
 
 Contributions in the form of pull requests very welcome.
 
-Thank you to: [Fl1ck0ut](https://github.com/Fl1ck0ut)
+Thank you to: [Fl1ck0ut](https://github.com/Fl1ck0ut) and [MadsBock](https://github.com/MadsBock)
