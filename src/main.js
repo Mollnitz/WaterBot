@@ -1,6 +1,5 @@
 /*
     Made by Christian Møllnitz Moll#6916
-
 */ 
 
 const Discord = require('discord.js');
@@ -9,62 +8,69 @@ const client = new Discord.Client();
 const util = require('util');
 const fs = require('fs')
 
-//Used for check_rights
-const owner_access = true
-const admin_access = true
-const role_access = ['Mods', 'Owner']
 
-const base_lang = 'eng'
-const lang_dir = 'languages/'
-var lang_dict
+WaterbotVars = {
+    //Used for check_rights
+    owner_access: true,
+    admin_access: true,
+    role_access: ['Mods', 'Owner'],
 
+    //Language parameters
+    base_lang: 'eng',
+    lang_dir: 'languages/',
+    lang_dict: {},
 
-const end_strings = ['close', 'cancel', 'terminate', 'end', 'stop']
-const status_strings = ['status']
+    //Strings for closing and status
+    end_strings: ['close', 'cancel', 'terminate', 'end', 'stop'],
+    status_strings: ['status'],
 
-//Static values for conversion of time into ms
-const seconds_in_minute = 60
-const minutes_in_hour = 60
-const hours_in_day = 24
+    //Static values for conversion of time into ms
+    seconds_in_minute: 60,
+    minutes_in_hour: 60,
+    hours_in_day: 24,
 
-const bot_command_string = '!waterbot'
+    bot_command_string: '!waterbot',
 
-var drink_water_messages 
-var gif_library 
+    drink_water_messages: [],
+    gif_library: [],
 
-var serv_dict;
+    //A dictionary containing one element pr. server.
+    serv_dict: {}
+}
+
 
 
 client.on('ready', () => {
-    gif_library = fs.readFileSync("./data/gifs").toString().split("\n")
-    drink_water_messages = fs.readFileSync("./data/eng_messages").toString().split("\n")
     console.log(`Logged in as ${client.user.tag}!`);
-    serv_dict = {};
-    lang_dict = {};
-    read_langs()
+    WaterbotVars.gif_library = fs.readFileSync("./data/gifs").toString().split("\n")
+    WaterbotVars.drink_water_messages = fs.readFileSync("./data/eng_messages").toString().split("\n")
+    
+    WaterbotVars.serv_dict = {};
+    WaterbotVars.lang_dict = {};
+    readLangs()
 });
 
 client.on('message', msg => {
-    if(!check_rights(msg)){
+    if(!checkRights(msg)){
         return;
     }   
 
-    if(msg.cleanContent.toLowerCase().startsWith(bot_command_string)) {
+    if(msg.cleanContent.toLowerCase().startsWith(WaterbotVars.bot_command_string)) {
 
-        has_valid_setup = serv_dict[msg_to_dict_id(msg)] !== undefined
+        has_valid_setup = WaterbotVars.serv_dict[msgToDictID(msg)] !== undefined
         clean_split = msg.cleanContent.trim().split(" ")
         content_split = msg.content.trim().split(" ")
 
-        if(status_strings.includes(clean_split[1]))
+        if(WaterbotVars.status_strings.includes(clean_split[1]))
         {
-            msg.channel.send(write_status(msg));
+            msg.channel.send(writeStatus(msg));
             return;
         }
         
-        if(end_strings.includes(clean_split[1])){
+        if(WaterbotVars.end_strings.includes(clean_split[1])){
             
-            msg.channel.send(write_close(msg))
-            close_handle(msg);
+            msg.channel.send(writeClose(msg))
+            closeHandle(msg);
             return;
         }
 
@@ -94,9 +100,9 @@ client.on('message', msg => {
                 second = parseInt(pieces[2], 10);
             }
 
-            second = nan_to_zero(second);
-            minute = nan_to_zero(minute);
-            hour = nan_to_zero(hour);
+            second = nanToZero(second);
+            minute = nanToZero(minute);
+            hour = nanToZero(hour);
             
             var group = ""
             if(rolestring !== undefined && rolestring.trim().match(/^<@&\d{1,50}>$/) !== null){
@@ -105,20 +111,22 @@ client.on('message', msg => {
 
             if(hour+minute+second !== 0)
             {
-                var ms_delay = 1000 * second + 1000 * seconds_in_minute * minute + 1000 * seconds_in_minute * minutes_in_hour * hour
-                console.log(serv_dict[msg_to_dict_id(msg)])
-                if(serv_dict[msg_to_dict_id(msg)] !== undefined)
+                var ms_delay = 1000 * second + 1000 * WaterbotVars.seconds_in_minute * minute + 1000 * WaterbotVars.seconds_in_minute * WaterbotVars.minutes_in_hour * hour
+
+                //Close current handle if a new one is requested.
+                if(WaterbotVars.serv_dict[msgToDictID(msg)] !== undefined)
                 {
-                    close_handle(msg)
+                    closeHandle(msg)
                 }
-                serv_dict[msg_to_dict_id(msg)] = {
+
+                WaterbotVars.serv_dict[msgToDictID(msg)] = {
                     handle: setInterval(()=>reminder(msg, group), ms_delay),
                     timestamp: + Math.round(new Date().getTime()/1000),
                     delay: ms_delay / 1000,
                     group: group,
-                    lang: lang_dict[base_lang] 
+                    lang: WaterbotVars.lang_dict[WaterbotVars.base_lang] 
                 } 
-                msg.channel.send(write_confirm_setup(msg));
+                msg.channel.send(writeConfirmSetup(msg));
             }
             else{
                 help(msg)
@@ -130,41 +138,41 @@ client.on('message', msg => {
     }
 });
 
-async function read_langs() {
+async function readLangs() {
     var filenames = []
-    var filenames_awaiter = await fs.promises.readdir(lang_dir)
+    var filenames_awaiter = await fs.promises.readdir(WaterbotVars.lang_dir)
     filenames.push(filenames_awaiter) 
 
     const { length } = filenames
-    const strings = await Promise.all(filenames.map(fname => fs.promises.readFile(lang_dir + fname)))
+    const strings = await Promise.all(filenames.map(fname => fs.promises.readFile(WaterbotVars.lang_dir + fname)))
 
     for (let i = 0; i < length; i++) {
-        lang_dict[filenames[i].toString().split('.')[0]] = JSON.parse(strings[i]);
+        WaterbotVars.lang_dict[filenames[i].toString().split('.')[0]] = JSON.parse(strings[i]);
     }
        
 }
 
 //TODO: Needs to have translation support.
-function write_close(msg){
+function writeClose(msg){
     var res = ""
-    res += "Waterbot has been disabled \n"
-    res += "Thank you for using Waterbot \n"
+    res += "WaterBot has been disabled \n"
+    res += "Thank you for using WaterBot \n"
     res += "May your thirst have been quenched"
     return res
 }
 
-function write_confirm_setup(msg) {
+function writeConfirmSetup(msg) {
     var res = "Setup confirmed! \n"
-    res += write_status(msg);
+    res += writeStatus(msg);
     return res;
 }
 
-function write_status(msg){
-    if(serv_dict[msg_to_dict_id(msg)])
+function writeStatus(msg){
+    if(WaterbotVars.serv_dict[msgToDictID(msg)])
     {
-        var seconds = Math.floor(serv_dict[msg_to_dict_id(msg)].timestamp + serv_dict[msg_to_dict_id(msg)].delay - Math.floor(Date.now() / 1000)) 
-        var minutes = Math.floor(seconds / seconds_in_minute % minutes_in_hour)
-        var hours = Math.floor(seconds / seconds_in_minute / minutes_in_hour)
+        var seconds = Math.floor(WaterbotVars.serv_dict[msgToDictID(msg)].timestamp + WaterbotVars.serv_dict[msgToDictID(msg)].delay - Math.floor(Date.now() / 1000)) 
+        var minutes = Math.floor(seconds / WaterbotVars.seconds_in_minute % WaterbotVars.minutes_in_hour)
+        var hours = Math.floor(seconds / WaterbotVars.seconds_in_minute / WaterbotVars.minutes_in_hour)
         seconds %= 60
        
         var res = ""
@@ -175,25 +183,25 @@ function write_status(msg){
         return res;
     }
     else{
-        return "Waterbot has not been set up in this channel\nIf you need help setting up Waterbot try !Waterbot"
+        return "WaterBot has not been set up in this channel\nIf you need help setting up WaterBot try !WaterBot"
     }
 }
 
 function langLookup(msg, key, def = "Translation Missing"){
-    var res = (serv_dict[msg_to_dict_id(msg)].lang.hasOwnProperty(key) ? serv_dict[msg_to_dict_id(msg)].lang[key] : def)
+    var res = (WaterbotVars.serv_dict[msgToDictID(msg)].lang.hasOwnProperty(key) ? WaterbotVars.serv_dict[msgToDictID(msg)].lang[key] : def)
     return res;
 }
 
-function msg_to_dict_id(msg){
+function msgToDictID(msg){
     return msg.guild.id.toString() + " " + msg.channel.id.toString();
 }
 
-function close_handle(msg){
-    clearInterval(serv_dict[msg_to_dict_id(msg)].handle)
-    delete serv_dict[msg_to_dict_id(msg)];
+function closeHandle(msg){
+    clearInterval(WaterbotVars.serv_dict[msgToDictID(msg)].handle)
+    delete WaterbotVars.serv_dict[msgToDictID(msg)];
 }
 
-function nan_to_zero(num) {
+function nanToZero(num) {
     if(isNaN(num))
     {
         return 0;
@@ -210,23 +218,23 @@ function WaterBot(text, group) {
     {
         res += group;
     }
-    res += drink_water_messages[Math.floor(Math.random() * drink_water_messages.length)];
+    res += WaterbotVars.drink_water_messages[Math.floor(Math.random() * WaterbotVars.drink_water_messages.length)];
     res += " "
-    res += gif_library[Math.floor(Math.random() * gif_library.length)]
+    res += WaterbotVars.gif_library[Math.floor(Math.random() * WaterbotVars.gif_library.length)]
     return res
 }
 
 //Checks for rights.
-function check_rights(msg) {
+function checkRights(msg) {
     var access = false;
-    if(admin_access){
+    if(WaterbotVars.admin_access){
         access = msg.member.hasPermission("ADMINISTRATOR")
     }
-    if(owner_access)(
+    if(WaterbotVars.owner_access)(
         access = access || msg.guild.ownerID === msg.author.id
     ) 
-    if(role_access !== null){
-        role_access.forEach(element => {
+    if(WaterbotVars.role_access !== null){
+        WaterbotVars.role_access.forEach(element => {
             access = access || msg.member.roles.cache.some(role => role.name === element)
         });
     }
@@ -259,7 +267,7 @@ function help(msg){
 function reminder(msg, group = "") {
     msg.channel.send(WaterBot(msg.cleanContent, group));
     //Update time for next reminder
-    serv_dict[msg_to_dict_id(msg)].timestamp = Math.floor(Date.now() / 1000)
+    WaterbotVars.serv_dict[msgToDictID(msg)].timestamp = Math.floor(Date.now() / 1000)
 }
 
 
