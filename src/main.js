@@ -7,6 +7,8 @@ const client = new Discord.Client();
 
 const util = require('util');
 const fs = require('fs')
+var mysql = require('mysql');
+const { token } = require('./token.js');
 
 
 WaterbotVars = {
@@ -35,19 +37,64 @@ WaterbotVars = {
     gif_library: [],
 
     //A dictionary containing one element pr. server.
-    serv_dict: {}
+    serv_dict: {},
+    con: mysql.createConnection({
+        host: "localhost",
+        user: "pi",
+        database: 'waterbot',
+        password: require("./token.js").password
+      })
 }
 
+function loadServerFromDB(serverDBObject){
+    
+    var dbmsg = JSON.parse(serverDBObject.msg);
+    var dbauthor = JSON.parse(serverDBObject.author)
 
+    client.channels.fetch(dbmsg.channelID).then((channel) => {
+        console.log("registered")
+        var msg = new Discord.Message(client,  {
+            id: dbmsg.id,
+            type: dbmsg.type,
+            content: dbmsg.content,
+            author: dbauthor,
+            pinned: dbmsg.pinned,
+            tts: dbmsg.tts,
+            embeds: dbmsg.embeds,
+            attachments: dbmsg.attachments,
+            nonce: dbmsg.nonce
+        },  channel)
+
+        var tsNow = +Math.round(new Date().getTime() / 1000)
+        var currTs = tsNow
+
+        var dto = writeOrGetDTO(msg, currTs, serverDBObject.delay, serverDBObject.group === undefined ? "" : serverDBObject.group)
+        registerServerHandle(dto, msg);
+
+    } )
+
+    
+}
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+
     WaterbotVars.gif_library = fs.readFileSync("./data/gifs").toString().split("\n")
     WaterbotVars.drink_water_messages = fs.readFileSync("./data/eng_messages").toString().split("\n")
-    
+
     WaterbotVars.serv_dict = {};
     WaterbotVars.lang_dict = {};
-    readLangs()
+    readLangs().then(() => {
+        WaterbotVars.con.connect(function(err) {
+            if (err) throw err;
+            console.log("Connected to DB!");
+        });
+        WaterbotVars.con.query("SELECT * FROM servers", function (err, result) {
+            if (err) throw err;
+            Object.keys(result).map(x => loadServerFromDB(result[x]))
+        });
+    })
+
 });
 
 client.on('message', msg => {
@@ -63,6 +110,7 @@ client.on('message', msg => {
 
         if(WaterbotVars.status_strings.includes(clean_split[1]))
         {
+            
             msg.channel.send(writeStatus(msg));
             return;
         }
@@ -111,6 +159,12 @@ client.on('message', msg => {
 
             if(hour+minute+second !== 0)
             {
+                //Dumb spam fix
+                if(hour === 0 && minute === 0 && second < 5)
+                {
+                    second = 5;
+                }
+
                 var ms_delay = 1000 * second + 1000 * WaterbotVars.seconds_in_minute * minute + 1000 * WaterbotVars.seconds_in_minute * WaterbotVars.minutes_in_hour * hour
 
                 //Close current handle if a new one is requested.
@@ -118,15 +172,10 @@ client.on('message', msg => {
                 {
                     closeHandle(msg)
                 }
-
-                WaterbotVars.serv_dict[msgToDictID(msg)] = {
-                    handle: setInterval(()=>reminder(msg, group), ms_delay),
-                    timestamp: + Math.round(new Date().getTime()/1000),
-                    delay: ms_delay / 1000,
-                    group: group,
-                    lang: WaterbotVars.lang_dict[WaterbotVars.base_lang] 
-                } 
+                let dto = writeOrGetDTO(msg, +Math.round(new Date().getTime() / 1000), ms_delay, group)
+                registerServerHandle(dto, msg) 
                 msg.channel.send(writeConfirmSetup(msg));
+                writeToDB(dto, msg)
             }
             else{
                 help(msg)
@@ -137,6 +186,52 @@ client.on('message', msg => {
         }
     }
 });
+
+function writeToDB(dto, msg){
+    var querystr = ""
+    querystr += "INSERT INTO servers (id, msg, author, timestamp, delay, grp, lang) "
+    querystr += "VALUES ( "
+    querystr += "'" + msg.channel.id +  "', "
+    querystr += "'" + JSON.stringify(msg) + "', "
+    querystr += "'" + JSON.stringify(msg.author) +  "', " 
+    querystr += "'" + "0" +  "', "
+    querystr += "'" + dto.delay +  "', "
+    querystr += (dto.group == "" ? 'NULL' : "'" + dto.group + "'") +  ", "
+    querystr += "'" + dto.lang.lang + "')" 
+    querystr += "ON DUPLICATE KEY UPDATE"
+    querystr += " msg = '" + JSON.stringify(msg)  +  "', "
+    querystr += " author = '" + JSON.stringify(msg.author) +  "', "
+    querystr += " timestamp = " + "0"  +  ", "
+    querystr += " delay = " + dto.delay  +  ", "
+    querystr += " grp = " + (dto.group == "" ? 'NULL' : + dto.group) +  ", "
+    querystr += " lang = '" + dto.lang.lang  +  "' "
+    querystr += ";"
+    
+    WaterbotVars.con.query(querystr, function (err, result) {
+        if (err) throw err;
+        
+    }); 
+}
+
+function writeOrGetDTO(msg, tstamp, ms_delay, group)
+{
+    if(WaterbotVars.serv_dict[msgToDictID(msg)] == undefined)
+    {
+        
+        return {
+            handle: setInterval(() => reminder(msg, group), ms_delay),
+            timestamp: tstamp,
+            delay: ms_delay,
+            group: group,
+            lang: WaterbotVars.lang_dict[WaterbotVars.base_lang]
+        }
+    }
+    return WaterbotVars.serv_dict[msgToDictID(msg)]
+}
+
+function registerServerHandle(dto, msg) {
+    WaterbotVars.serv_dict[msgToDictID(msg)] = dto
+}
 
 async function readLangs() {
     var filenames = []
@@ -170,15 +265,15 @@ function writeConfirmSetup(msg) {
 function writeStatus(msg){
     if(WaterbotVars.serv_dict[msgToDictID(msg)])
     {
-        var seconds = Math.floor(WaterbotVars.serv_dict[msgToDictID(msg)].timestamp + WaterbotVars.serv_dict[msgToDictID(msg)].delay - Math.floor(Date.now() / 1000)) 
+        var seconds = Math.floor(WaterbotVars.serv_dict[msgToDictID(msg)].timestamp + (WaterbotVars.serv_dict[msgToDictID(msg)].delay / 1000) - Math.floor(Date.now() / 1000)) 
         var minutes = Math.floor(seconds / WaterbotVars.seconds_in_minute % WaterbotVars.minutes_in_hour)
         var hours = Math.floor(seconds / WaterbotVars.seconds_in_minute / WaterbotVars.minutes_in_hour)
         seconds %= 60
        
         var res = ""
         res += "Next message in: " + 
-        (hours !== 0 ? hours.toString() + (hours > 1 ? langLookup(msg, 'hrs_plur') : langLookup(msg, 'hrs'))  : "") + " " +
-        (minutes !== 0 ? minutes.toString() + " " + (minutes > 1 ? langLookup(msg, 'min_plur') : langLookup(msg, 'min')) : "") + " " + 
+        (hours !== 0 ? hours.toString() + " " + (hours > 1 ? langLookup(msg, 'hr_plur') + " " : langLookup(msg, 'hr')) + " " : "")  +
+        (minutes !== 0 ? minutes.toString() + " " + (minutes > 1 ? langLookup(msg, 'min_plur') + " " : langLookup(msg, 'min')) + " " : "") + 
         (seconds !== 0 ? seconds.toString() + " " + (seconds > 1 ? langLookup(msg, 'sec_plur') : langLookup(msg, 'sec')) : "")
         return res;
     }
@@ -193,7 +288,7 @@ function langLookup(msg, key, def = "Translation Missing"){
 }
 
 function msgToDictID(msg){
-    return msg.guild.id.toString() + " " + msg.channel.id.toString();
+    return msg.channel.id.toString();
 }
 
 function closeHandle(msg){
@@ -212,7 +307,7 @@ function nanToZero(num) {
 }
 
 
-function WaterBot(text, group) {
+function WaterBot(group) {
     var res = ""
     if(group != "")
     {
@@ -265,7 +360,7 @@ function help(msg){
 
 //The reminder function that is designed to repeat forever.
 function reminder(msg, group = "") {
-    msg.channel.send(WaterBot(msg.cleanContent, group));
+    msg.channel.send(WaterBot(group));
     //Update time for next reminder
     WaterbotVars.serv_dict[msgToDictID(msg)].timestamp = Math.floor(Date.now() / 1000)
 }
