@@ -294,6 +294,14 @@ function msgToDictID(msg){
 function closeHandle(msg){
     clearInterval(WaterbotVars.serv_dict[msgToDictID(msg)].handle)
     delete WaterbotVars.serv_dict[msgToDictID(msg)];
+
+    var querystr = "DELETE from servers WHERE id=" + msg.channel.id.toString() 
+
+    WaterbotVars.con.query(querystr, function (err, result) {
+        if (err) throw err;
+        console.log("Deleted from DB")
+    }); 
+
 }
 
 function nanToZero(num) {
