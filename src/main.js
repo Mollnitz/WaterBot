@@ -108,14 +108,14 @@ client.on('message', msg => {
         clean_split = msg.cleanContent.trim().split(" ")
         content_split = msg.content.trim().split(" ")
 
-        if(WaterbotVars.status_strings.includes(clean_split[1]))
+        if(WaterbotVars.status_strings.includes(clean_split[1].toLowerCase()))
         {
             
             msg.channel.send(writeStatus(msg));
             return;
         }
         
-        if(WaterbotVars.end_strings.includes(clean_split[1])){
+        if(WaterbotVars.end_strings.includes(clean_split[1].toLowerCase())){
             
             msg.channel.send(writeClose(msg))
             closeHandle(msg);
