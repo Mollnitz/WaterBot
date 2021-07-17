@@ -51,30 +51,55 @@ function loadServerFromDB(serverDBObject){
     var dbmsg = JSON.parse(serverDBObject.msg);
     var dbauthor = JSON.parse(serverDBObject.author)
 
-    client.channels.fetch(dbmsg.channelID).then((channel) => {
-        console.log("registered")
-        var msg = new Discord.Message(client,  {
-            id: dbmsg.id,
-            type: dbmsg.type,
-            content: dbmsg.content,
-            author: dbauthor,
-            pinned: dbmsg.pinned,
-            tts: dbmsg.tts,
-            embeds: dbmsg.embeds,
-            attachments: dbmsg.attachments,
-            nonce: dbmsg.nonce
-        },  channel)
+    try{
+        client.channels.fetch(dbmsg.channelID).catch((err) => {
+            console.log("catching error")
+            var querystr = "DELETE from servers WHERE id=" + dbmsg.channelID 
 
-        var tsNow = +Math.round(new Date().getTime() / 1000)
-        var currTs = tsNow
+            WaterbotVars.con.query(querystr, function (err, result) {
+                if (err) throw err;
+                console.log("Deleted from DB")
+        }); 
+        }).then((channel) => {
+            console.log("registered")
+            var msg = new Discord.Message(client,  {
+                id: dbmsg.id,
+                type: dbmsg.type,
+                content: dbmsg.content,
+                author: dbauthor,
+                pinned: dbmsg.pinned,
+                tts: dbmsg.tts,
+                embeds: dbmsg.embeds,
+                attachments: dbmsg.attachments,
+                nonce: dbmsg.nonce
+            },  channel)
+            var tNow = +Math.round(new Date().getTime() / 1000)
+            const secDelay = serverDBObject.delay / 1000
+            var tDelta = tNow - serverDBObject.timestamp
+            var interval = Math.floor(tDelta / secDelay)
+            var lastEventTStamp = serverDBObject.timestamp + (secDelay * interval)
 
-        var dto = writeOrGetDTO(msg, currTs, serverDBObject.delay, serverDBObject.group === undefined ? "" : serverDBObject.group)
-        registerServerHandle(dto, msg);
+            interval++
+            
+            var nextEventTStamp = serverDBObject.timestamp + (secDelay * interval)
+            var msToNextEvent = (nextEventTStamp - tNow) * 1000
+            var dto = writeOrGetDTO(msg, lastEventTStamp, serverDBObject.delay, serverDBObject.group === undefined ? "" : serverDBObject.group, msToNextEvent)
+            registerServerHandle(dto, msg); } )
 
-    } )
-
-    
+    } catch (error) {
+        
+    }    
 }
+
+client.on('error', error => {
+    console.error("caught ", error)
+    client.login(require("./token.js").token)
+});
+
+client.on('shardError', error => {
+	console.error('A websocket connection encountered an error:', error);
+    client.login(require("./token.js").token)
+});
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -165,7 +190,7 @@ client.on('message', msg => {
                     second = 5;
                 }
 
-                var ms_delay = 1000 * second + 1000 * WaterbotVars.seconds_in_minute * minute + 1000 * WaterbotVars.seconds_in_minute * WaterbotVars.minutes_in_hour * hour
+                var ms_delay = calc_msdelay(second, minute, hour)
 
                 //Close current handle if a new one is requested.
                 if(WaterbotVars.serv_dict[msgToDictID(msg)] !== undefined)
@@ -187,6 +212,10 @@ client.on('message', msg => {
     }
 });
 
+function calc_msdelay(second, minute, hour) {
+    return 1000 * second + 1000 * WaterbotVars.seconds_in_minute * minute + 1000 * WaterbotVars.seconds_in_minute * WaterbotVars.minutes_in_hour * hour;
+}
+
 function writeToDB(dto, msg){
     var querystr = ""
     querystr += "INSERT INTO servers (id, msg, author, timestamp, delay, grp, lang) "
@@ -194,7 +223,7 @@ function writeToDB(dto, msg){
     querystr += "'" + msg.channel.id +  "', "
     querystr += "'" + JSON.stringify(msg) + "', "
     querystr += "'" + JSON.stringify(msg.author) +  "', " 
-    querystr += "'" + "0" +  "', "
+    querystr += "'" + dto.timestamp +  "', "
     querystr += "'" + dto.delay +  "', "
     querystr += (dto.group == "" ? 'NULL' : "'" + dto.group + "'") +  ", "
     querystr += "'" + dto.lang.lang + "')" 
@@ -213,13 +242,17 @@ function writeToDB(dto, msg){
     }); 
 }
 
-function writeOrGetDTO(msg, tstamp, ms_delay, group)
+function writeOrGetDTO(msg, tstamp, ms_delay, group, next_event = null)
 {
+    if(next_event == null)
+    {
+        next_event = ms_delay
+    }
+
     if(WaterbotVars.serv_dict[msgToDictID(msg)] == undefined)
     {
-        
         return {
-            handle: setInterval(() => reminder(msg, group), ms_delay),
+            handle: setInterval(() => reminder(msg, group), next_event),
             timestamp: tstamp,
             delay: ms_delay,
             group: group,
@@ -368,9 +401,18 @@ function help(msg){
 
 //The reminder function that is designed to repeat forever.
 function reminder(msg, group = "") {
+    //Send
     msg.channel.send(WaterBot(group));
+    
+    //Reboot handle
+    clearInterval(WaterbotVars.serv_dict[msgToDictID(msg)].handle)
+    var ms_delay = WaterbotVars.serv_dict[msgToDictID(msg)].delay
+    delete WaterbotVars.serv_dict[msgToDictID(msg)];
+    var dto = writeOrGetDTO(msg, +Math.round(new Date().getTime() / 1000), ms_delay, group)
+    registerServerHandle(dto, msg)
+
     //Update time for next reminder
-    WaterbotVars.serv_dict[msgToDictID(msg)].timestamp = Math.floor(Date.now() / 1000)
+    //WaterbotVars.serv_dict[msgToDictID(msg)].timestamp = Math.floor(Date.now() / 1000)
 }
 
 
